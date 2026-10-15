@@ -19,10 +19,12 @@ captions, to try the subtitle editor, timeline, overlay and Validate) and
 timings, with a few low-confidence words so the review marking has something
 to show, and a 40-second sample video to play.
 
-You need `git`, `uv`, `curl` and `python3`. On a Mac with
+You need `git`, `uv`, `curl` and `python3`, plus libpq's `pg_config`: the
+backend's `psycopg2` is built from source. That is only the client library;
+no PostgreSQL server is needed or started. On a Mac with
 [Homebrew](https://brew.sh), `./launch_dev_env.sh --macos-deps` installs
-whichever of them is missing (it does not install Homebrew itself) and then
-starts as usual. Nothing else is installed on your machine; each project gets
+whichever of them is missing, `pg_config` included (it does not install
+Homebrew itself), and then starts as usual. Nothing else is installed on your machine; each project gets
 its own virtualenv.
 
 ## Changing the code
@@ -59,7 +61,7 @@ everything with Ctrl-C.
 
 | Flag | |
 |---|---|
-| `--macos-deps` | Install missing `git`, `uv`, `curl` and `python3` with Homebrew, then start. macOS only; stops with a pointer to <https://brew.sh> if Homebrew is missing, and never installs Homebrew itself. Tools already present are left alone. |
+| `--macos-deps` | Install missing `git`, `uv`, `curl`, `python3` and `libpq` with Homebrew, then start. macOS only; stops with a pointer to <https://brew.sh> if Homebrew is missing, and never installs Homebrew itself. Tools already present are left alone. |
 | `reset` (or `--reset`) | Delete the database, uploaded files and secrets first, for a clean start. |
 | `--help` | Show the usage text. |
 

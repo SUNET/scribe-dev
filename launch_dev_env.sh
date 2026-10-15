@@ -65,6 +65,20 @@ if [ "$MACOS_DEPS" = 1 ]; then
         say "Installing $(brew_formula "$tool") with Homebrew"
         brew install "$(brew_formula "$tool")"
     done
+
+    # scribe-backend's psycopg2 is built from source (it has no macOS wheel)
+    # and needs libpq's pg_config. Only the client library, not a server.
+    if ! command -v pg_config >/dev/null && ! brew list libpq >/dev/null 2>&1; then
+        say "Installing libpq with Homebrew"
+        brew install libpq
+    fi
+fi
+
+# libpq is keg-only: Homebrew installs it without putting pg_config on PATH.
+if ! command -v pg_config >/dev/null && command -v brew >/dev/null \
+    && libpq_prefix="$(brew --prefix libpq 2>/dev/null)" \
+    && [ -x "$libpq_prefix/bin/pg_config" ]; then
+    export PATH="$libpq_prefix/bin:$PATH"
 fi
 
 for tool in git uv curl python3; do
@@ -198,6 +212,9 @@ for port in "$OIDC_PORT" "$BACKEND_PORT" "$UI_PORT"; do
         die "port $port is already in use"
     fi
 done
+
+command -v pg_config >/dev/null || die "pg_config is needed to build scribe-backend's psycopg2
+       (macOS: ./launch_dev_env.sh --macos-deps; Debian/Ubuntu: apt install libpq-dev; Fedora: dnf install libpq-devel)"
 
 say "Installing dependencies"
 (cd "$HERE/scribe-backend" && uv sync --quiet)
