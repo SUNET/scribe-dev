@@ -5,6 +5,8 @@
 #
 #   ./launch_dev_env.sh          start everything, Ctrl-C stops it
 #   ./launch_dev_env.sh reset    forget the database, files and secrets first
+#   ./launch_dev_env.sh --macos-deps
+#                                install what is missing with Homebrew, then start
 #
 # The two clones, scribe-backend/ and scribe-ui/, sit next to this script: edit
 # them and the backend (uvicorn --reload) and the UI (NiceGUI reload) restart
@@ -31,11 +33,44 @@ UI="http://localhost:$UI_PORT"
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-for tool in git uv curl python3; do
-    command -v "$tool" >/dev/null || die "$tool is required"
+RESET=0
+MACOS_DEPS=0
+for arg in "$@"; do
+    case "$arg" in
+        reset | --reset) RESET=1 ;;
+        --macos-deps) MACOS_DEPS=1 ;;
+        -h | --help) sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) die "unknown argument: $arg (try --help)" ;;
+    esac
 done
 
-if [ "${1:-}" = "reset" ]; then
+# command -> Homebrew formula
+brew_formula() {
+    case "$1" in
+        python3) echo python ;;
+        *) echo "$1" ;;
+    esac
+}
+
+if [ "$MACOS_DEPS" = 1 ]; then
+    [ "$(uname -s)" = Darwin ] || die "--macos-deps is for macOS only"
+    command -v brew >/dev/null \
+        || die "Homebrew is not installed; get it from https://brew.sh and run this again"
+    for tool in git uv curl python3; do
+        if command -v "$tool" >/dev/null; then
+            continue
+        fi
+        say "Installing $(brew_formula "$tool") with Homebrew"
+        brew install "$(brew_formula "$tool")"
+    done
+fi
+
+for tool in git uv curl python3; do
+    command -v "$tool" >/dev/null \
+        || die "$tool is required (on a Mac: ./launch_dev_env.sh --macos-deps)"
+done
+
+if [ "$RESET" = 1 ]; then
     say "Removing database, files and generated settings"
     rm -rf "$DEV/data" "$DEV/secrets" "$DEV/logs"
 fi

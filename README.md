@@ -12,8 +12,11 @@ backend and the UI. When it is done it prints where to go: open
 <http://localhost:8888>, press the login button and you are signed in as
 `dev@example.com`, an active admin and BOFH. There is no login form.
 
-You need `git`, `uv`, `curl` and `python3`. Nothing else is installed on your
-machine; each project gets its own virtualenv.
+You need `git`, `uv`, `curl` and `python3`. On a Mac with
+[Homebrew](https://brew.sh), `./launch_dev_env.sh --macos-deps` installs
+whichever of them is missing (it does not install Homebrew itself) and then
+starts as usual. Nothing else is installed on your machine; each project gets
+its own virtualenv.
 
 ## Changing the code
 
@@ -43,6 +46,16 @@ scribe-ui/            clone, yours to edit   (not committed here)
 Logs are in `.dev/logs/` (`oidc.log`, `backend.log`, `ui.log`). Stop
 everything with Ctrl-C.
 
+## Flags
+
+| Flag | |
+|---|---|
+| `--macos-deps` | Install missing `git`, `uv`, `curl` and `python3` with Homebrew, then start. macOS only; stops with a pointer to <https://brew.sh> if Homebrew is missing, and never installs Homebrew itself. Tools already present are left alone. |
+| `reset` (or `--reset`) | Delete the database, uploaded files and secrets first, for a clean start. |
+| `--help` | Show the usage text. |
+
+Flags combine: `./launch_dev_env.sh --macos-deps reset`.
+
 ## Options
 
 Environment variables, all optional:
@@ -55,8 +68,7 @@ Environment variables, all optional:
 | `BRANCH` | `main` | Used when cloning. |
 | `BACKEND_REPO`, `UI_REPO` | the SUNET GitHub repos | Point at your forks. |
 
-`./launch_dev_env.sh reset` deletes the database, uploaded files and secrets
-first, for a clean start. The settings files in `.dev/` are rewritten on every
+The settings files in `.dev/` are rewritten on every
 run, so a changed port always takes effect.
 
 To sign in as someone else, restart with `DEV_USER=other@example.org`. A
