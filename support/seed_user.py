@@ -1,6 +1,7 @@
 """
 Create the dev user as an active admin and BOFH, so the first login lands
-on a working home page instead of "not activated".
+on a working home page instead of "not activated". An existing user is not
+touched.
 
 Run from inside a scribe-backend checkout with its settings exported:
 
@@ -39,15 +40,17 @@ def main() -> None:
                 realm=realm,
                 transcribed_seconds=0,
                 email=username,
+                active=True,
+                admin=True,
+                bofh=True,
             )
             session.add(user)
-
-        user.active = True
-        user.admin = True
-        user.bofh = True
-        session.commit()
-
-    print(f"Dev user {username} ({user_id}) is active, admin and BOFH.")
+            session.commit()
+            print(f"Created dev user {username}: active, admin and BOFH.")
+        else:
+            # Already there from an earlier run: leave it as it is, so
+            # changes made in the UI (roles, groups, ...) survive a restart.
+            print(f"Dev user {username} already exists; left as it is.")
 
 
 if __name__ == "__main__":

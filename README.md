@@ -10,7 +10,14 @@ It clones `scribe-backend` and `scribe-ui` (from `main`) next to this script,
 starts a fake OIDC server that stands in for the login provider, and runs the
 backend and the UI. When it is done it prints where to go: open
 <http://localhost:8888>, press the login button and you are signed in as
-`dev@example.com`, an active admin and BOFH. There is no login form.
+`dev@example.com`, an active admin and BOFH. There is no login form. You are
+then asked for an encryption passphrase: it is `devpassphrase`.
+
+My files starts with two finished jobs to open: **Sample subtitles** (twelve
+captions, to try the subtitle editor, timeline, overlay and Validate) and
+**Sample interview** (a transcription with two speakers). Both have word
+timings, with a few low-confidence words so the review marking has something
+to show, and a 40-second sample video to play.
 
 You need `git`, `uv`, `curl` and `python3`. On a Mac with
 [Homebrew](https://brew.sh), `./launch_dev_env.sh --macos-deps` installs
@@ -38,6 +45,8 @@ launch_dev_env.sh     the script
 support/              what the environment needs besides the two projects
   fake_oidc/          the fake login provider
   seed_user.py        makes the dev user active, admin and BOFH
+  seed_samples.py     adds the two sample jobs (once)
+  samples/sample.mp4  the video they play
 scribe-backend/       clone, yours to edit   (not committed here)
 scribe-ui/            clone, yours to edit   (not committed here)
 .dev/                 generated: database, uploaded files, secrets, logs
@@ -64,9 +73,17 @@ Environment variables, all optional:
 |---|---|---|
 | `BACKEND_PORT` | `8000` | The UI's port, 8888, is fixed by `scribe-ui`. |
 | `OIDC_PORT` | `9000` | |
+| `DEV_PASSPHRASE` | `devpassphrase` | The encryption passphrase asked for after signing in. The sample files are encrypted with it, so set it before the first run (or `reset`). |
 | `DEV_USER` | `dev@example.com` | Who the login signs in as. The part after `@` is the realm. |
 | `BRANCH` | `main` | Used when cloning. |
 | `BACKEND_REPO`, `UI_REPO` | the SUNET GitHub repos | Point at your forks. |
+
+The sample jobs are added once, when the user has no jobs, and are kept
+until `reset`; delete them in My files like any other job. Your data is kept
+between runs: the database and uploaded files live in
+`.dev/data/`, and nothing touches them except `reset`. The dev user is created
+once and then left alone, so roles and groups you change in the UI survive a
+restart.
 
 The settings files in `.dev/` are rewritten on every
 run, so a changed port always takes effect.

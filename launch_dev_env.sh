@@ -25,6 +25,8 @@ OIDC_PORT="${OIDC_PORT:-9000}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 UI_PORT=8888  # hard-coded in scribe-ui main.py
 DEV_USER="${DEV_USER:-dev@example.com}"
+# What the first login asks for; the sample files are encrypted with it.
+DEV_PASSPHRASE="${DEV_PASSPHRASE:-devpassphrase}"
 
 OIDC="http://localhost:$OIDC_PORT"
 BACKEND="http://localhost:$BACKEND_PORT"
@@ -211,6 +213,8 @@ say "Preparing the database"
     load_env "$DEV/backend.env"
     cd "$HERE/scribe-backend"
     PYTHONPATH="$PWD" uv run --quiet python "$SUPPORT/seed_user.py" "$DEV_USER"
+    PYTHONPATH="$PWD" uv run --quiet python "$SUPPORT/seed_samples.py" \
+        "$DEV_USER" "$DEV_PASSPHRASE"
     # Tables exist now, so mark the migrations as applied rather than run them.
     uv run --quiet alembic stamp head >/dev/null
 )
@@ -229,6 +233,7 @@ cat <<EOF
 
   Scribe is up:   $UI
   Sign in as:     $DEV_USER (admin and BOFH; the fake login has no form)
+  Passphrase:     $DEV_PASSPHRASE (asked for after signing in)
   Backend docs:   $BACKEND/api/docs
   Logs:           $DEV/logs/
 
