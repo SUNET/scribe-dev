@@ -232,6 +232,7 @@ say "Preparing the database"
     PYTHONPATH="$PWD" uv run --quiet python "$SUPPORT/seed_user.py" "$DEV_USER"
     PYTHONPATH="$PWD" uv run --quiet python "$SUPPORT/seed_samples.py" \
         "$DEV_USER" "$DEV_PASSPHRASE"
+    PYTHONPATH="$PWD" uv run --quiet python "$SUPPORT/seed_banner.py"
     # Tables exist now, so mark the migrations as applied rather than run them.
     uv run --quiet alembic stamp head >/dev/null
 )
