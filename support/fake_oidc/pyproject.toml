@@ -1,0 +1,9 @@
+[project]
+name = "fake-oidc"
+version = "0.1.0"
+description = "A fake OIDC server for local development of Sunet Scribe"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=46.0.4",
+    "pyjwt>=2.8.0",
+]
