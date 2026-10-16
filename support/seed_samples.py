@@ -1,7 +1,8 @@
 """
-Give the dev user two finished jobs to open: a set of subtitles and a
-transcription with two speakers, both with word timings and the same short
-sample video.
+Give the dev user three finished jobs to open: a set of subtitles, a
+transcription with two speakers, and a second set of subtitles that breaks
+every rule "Validate" checks. All have word timings and the same short sample
+video.
 
 Run from inside a scribe-backend checkout with its settings exported:
 
@@ -9,8 +10,9 @@ Run from inside a scribe-backend checkout with its settings exported:
 
 The results are stored the way the worker's are -- encrypted for the user --
 which needs the user's key pair, so this also sets the user's encryption
-passphrase. It is what the first login asks for. Nothing is done when the user
-already has jobs, so a restart never adds a second set.
+passphrase. It is what the first login asks for. Only the samples the user
+does not have yet are added (matched by name), so a restart never adds a
+second set, and a sample added later turns up without starting over.
 """
 
 import asyncio
@@ -27,8 +29,10 @@ from sqlalchemy.orm import sessionmaker
 
 from db.job import job_create, job_result_save, job_update
 from db.models import Job, JobStatusEnum, JobType
-from db.user import user_get_public_key, user_update
+from db.user import user_get_private_key, user_get_public_key, user_update
 from utils.crypto import (
+    decrypt_string,
+    deserialize_private_key_from_pem,
     deserialize_public_key_from_pem,
     encrypt_data_to_file,
     encrypt_string,
@@ -54,6 +58,35 @@ SUBTITLES = [
     (37.0, 39.5, "Thanks for trying Sunet Scribe."),
 ]
 
+# Subtitles that break every rule "Validate" checks, one kind at a time (the
+# caption's number says which), and caption 10 breaking three at once to show
+# that a caption with several problems is one entry. Seconds, as above. Caption
+# 8 repeats 7's timing, which is also an overlap, so it is reported as both.
+#
+# "No text" is not here: an empty caption cannot be written in an SRT file --
+# the parser skips a block with no text line, so it is gone on import. Make one
+# in the editor ("Add caption after" starts an empty one) and press Validate.
+INVALID_SUBTITLES = [
+    (0.5, 3.5, "A caption that is fine,\nfor comparison."),
+    # 2: line longer than 42 characters
+    (4.0, 7.0, "This line is much too long for one subtitle line,\nand it runs well past the guideline."),
+    # 3: more than two lines
+    (7.5, 10.5, "Three lines\nis one more\nthan the guideline allows."),
+    # 4: on screen for less than 0.8 s
+    (11.0, 11.4, "Gone in a blink."),
+    # 5, 6: overlapping timestamps
+    (12.0, 15.0, "Overlaps the next one."),
+    (14.0, 17.0, "Starts before the last one ends."),
+    # 7, 8: the same timing
+    (18.0, 21.0, "Same timing as the next."),
+    (18.0, 21.0, "Same timing as the one before."),
+    # 9: ends before it starts
+    (24.0, 22.0, "Ends before it starts."),
+    # 10: two long lines, three lines, and 0.3 s on screen
+    (25.0, 25.3, "This first line is far too long for any subtitle to carry\nand this second one is nearly as long as the first\nthird"),
+    (30.0, 33.0, "Press Validate to see them all."),
+]
+
 # (speaker, start, end, text) -- a conversation, as the worker delivers it:
 # short segments in lower case, which the editor tidies into paragraphs.
 CONVERSATION = [
@@ -77,11 +110,24 @@ def srt_time(seconds: float) -> str:
     )
 
 
-def make_srt() -> str:
+def make_srt(captions=None) -> str:
     return "\n".join(
         f"{index}\n{srt_time(start)} --> {srt_time(end)}\n{text}\n"
-        for index, (start, end, text) in enumerate(SUBTITLES, 1)
+        for index, (start, end, text) in enumerate(captions or SUBTITLES, 1)
     )
+
+
+def spoken_in_order(captions) -> list[tuple[float, float, str]]:
+    """
+    One slot of speech per caption, back to back, whatever the caption's own
+    timing says. The words of a recording are flat and time-ordered; spans
+    taken from captions that overlap, repeat or run backwards would not be.
+    """
+
+    return [
+        (0.5 + 3.5 * number, 3.5 + 3.5 * number, text)
+        for number, (_start, _end, text) in enumerate(captions)
+    ]
 
 
 def make_words(spans: list[tuple[float, float, str]]) -> dict:
@@ -155,6 +201,11 @@ async def add_job(user_id, public_key, storage, name, output_format, result_kwar
     return job["uuid"]
 
 
+SAMPLE_SUBTITLES = "Sample subtitles.mp4"
+SAMPLE_INTERVIEW = "Sample interview.mp4"
+SAMPLE_INVALID = "Sample subtitles with errors.mp4"
+
+
 async def main() -> None:
     username, passphrase = sys.argv[1], sys.argv[2]
     settings = get_settings()
@@ -162,9 +213,35 @@ async def main() -> None:
 
     engine = create_engine(settings.API_DATABASE_URL)
     with sessionmaker(bind=engine)() as session:
-        if session.scalars(select(Job).where(Job.user_id == user_id)).first():
-            print("Sample jobs: the user already has jobs; nothing added.")
+        filenames = [
+            job.filename
+            for job in session.scalars(select(Job).where(Job.user_id == user_id))
+        ]
+
+    existing: set[str] = set()
+
+    if filenames:
+        # Which samples are there already? The names are encrypted for the
+        # user, so this needs their key -- which the passphrase opens, unless
+        # it was changed since, in which case there is no telling and the
+        # jobs are left alone.
+        try:
+            pem = await user_get_private_key(user_id)
+            private_key = deserialize_private_key_from_pem(
+                pem.encode() if isinstance(pem, str) else pem, passphrase.encode()
+            )
+        except Exception as error:
+            print(
+                "Sample jobs: the user already has jobs and the passphrase does "
+                f"not open them ({type(error).__name__}); nothing added."
+            )
             return
+
+        for filename in filenames:
+            try:
+                existing.add(decrypt_string(private_key, filename))
+            except Exception:
+                pass  # Not a name this key can read; not one of ours.
 
     if await user_get_public_key(user_id) is None:
         await user_update(
@@ -174,43 +251,63 @@ async def main() -> None:
     public_key = deserialize_public_key_from_pem(await user_get_public_key(user_id))
     storage = Path(settings.API_FILE_STORAGE_DIR)
 
-    subtitles = await add_job(
-        user_id,
-        public_key,
-        storage,
-        "Sample subtitles.mp4",
-        "srt",
-        lambda key: (
-            encrypt_string(
-                key, json.dumps(make_words([(s, e, t) for s, e, t in SUBTITLES]))
+    samples = {
+        SAMPLE_SUBTITLES: (
+            "srt",
+            lambda key: (
+                encrypt_string(
+                    key, json.dumps(make_words([(s, e, t) for s, e, t in SUBTITLES]))
+                ),
+                {"result_srt": encrypt_string(key, make_srt())},
             ),
-            {"result_srt": encrypt_string(key, make_srt())},
         ),
-    )
-    transcription = await add_job(
-        user_id,
-        public_key,
-        storage,
-        "Sample interview.mp4",
-        "txt",
-        lambda key: (
-            encrypt_string(
-                key,
-                json.dumps(make_words([(s, e, t) for _, s, e, t in CONVERSATION])),
+        SAMPLE_INTERVIEW: (
+            "txt",
+            lambda key: (
+                encrypt_string(
+                    key,
+                    json.dumps(make_words([(s, e, t) for _, s, e, t in CONVERSATION])),
+                ),
+                {"result": encrypt_string(key, json.dumps(make_conversation()))},
             ),
-            {"result": encrypt_string(key, json.dumps(make_conversation()))},
         ),
-    )
+        SAMPLE_INVALID: (
+            "srt",
+            lambda key: (
+                encrypt_string(
+                    key,
+                    json.dumps(make_words(spoken_in_order(INVALID_SUBTITLES))),
+                ),
+                {"result_srt": encrypt_string(key, make_srt(INVALID_SUBTITLES))},
+            ),
+        ),
+    }
+
+    added = []
+    names = []
+
+    for name, (output_format, result_kwargs) in samples.items():
+        if name in existing:
+            continue
+
+        added.append(
+            await add_job(
+                user_id, public_key, storage, name, output_format, result_kwargs
+            )
+        )
+        names.append(name)
+
+    if not added:
+        print("Sample jobs: all there already; nothing added.")
+        return
 
     # Jobs are removed when their deletion date passes; these should stay.
     with sessionmaker(bind=engine)() as session:
-        for job in session.scalars(
-            select(Job).where(Job.uuid.in_([subtitles, transcription]))
-        ):
+        for job in session.scalars(select(Job).where(Job.uuid.in_(added))):
             job.deletion_date = datetime.now() + timedelta(days=3650)
         session.commit()
 
-    print("Sample jobs: added a set of subtitles and a transcription.")
+    print(f"Sample jobs: added {', '.join(names)}.")
 
 
 if __name__ == "__main__":

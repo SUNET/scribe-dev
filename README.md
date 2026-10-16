@@ -47,7 +47,8 @@ launch_dev_env.sh     the script
 support/              what the environment needs besides the two projects
   fake_oidc/          the fake login provider
   seed_user.py        makes the dev user active, admin and BOFH
-  seed_samples.py     adds the two sample jobs (once)
+  seed_samples.py     adds the sample jobs: subtitles, an interview, and subtitles
+                      that break every Validate rule (each only once)
   seed_banner.py      adds the "development environment" banner (once)
   samples/sample.mp4  the video they play
 scribe-backend/       clone, yours to edit   (not committed here)
