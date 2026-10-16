@@ -47,14 +47,54 @@ launch_dev_env.sh     the script
 support/              what the environment needs besides the two projects
   fake_oidc/          the fake login provider
   seed_user.py        makes the dev user active, admin and BOFH
-  seed_samples.py     adds the sample jobs: subtitles, an interview, and subtitles
-                      that break every Validate rule (each only once)
+  seed_samples.py     adds the dev user's sample jobs, one for each thing worth
+                      trying (see "Sample data"; each only once)
+  seed_directory.py   adds users, groups, customers, rules, announcements, worker
+                      health and a few months of jobs for them (each only once)
   seed_banner.py      adds the "development environment" banner (once)
-  samples/sample.mp4  the video they play
+  seed_analytics.py   adds a month of made-up usage for the Analytics page (once)
+  samples/            the video the samples play, and audio for the recording
 scribe-backend/       clone, yours to edit   (not committed here)
 scribe-ui/            clone, yours to edit   (not committed here)
 .dev/                 generated: database, uploaded files, secrets, logs
 ```
+
+## Sample data
+
+Everything is made up and only added when it is missing, so a restart adds
+nothing and what you changed stays changed. `reset` starts over.
+
+**The dev user's jobs** each exist to try one thing:
+
+| Job | What it is for |
+|---|---|
+| Sample subtitles / Sample interview | The ordinary cases |
+| …with errors | Breaks every Validate rule. "No text" cannot be written in an SRT file: press "Add caption after" for an empty caption, then Validate |
+| …at the limits | 42-character lines, two lines, exactly 0.8 s, captions touching: Validate has nothing to say |
+| …without word timings | A job from before word timings: no timeline, no review marking |
+| …without confidence | Word timings but no scores: no review controls |
+| …with awkward text (and an interview) | Markup, template syntax, other scripts, emoji, in captions and speaker names: only ever shown, never interpreted |
+| Sample recording | Made in the browser, keeps its original: the Recording badge, and Export's "Include the original recording" |
+| Sample audio only | No picture |
+| Sample long subtitles (1 hour) | 600 captions. The video is only 40 s, so this is for scrolling and editing, not playback |
+| Sample expiring soon | Deleted by the backend in about a day; the next launch adds it again |
+| Pending, in progress, uploading, uploaded, failed | The other states of a job. They have no result, so there is nothing to open |
+
+**The organisation** (`seed_directory.py`), all on `.example` domains:
+
+- **Users** at three institutions: admins, one awaiting activation, one
+  deactivated, one deleted. Log in as one by setting `DEV_USER`.
+- **Groups** at every point of their quota: well under, nearly out, over, and
+  no limit. Quota is the group's total for the calendar month.
+- **Customers** on both price plans, one with nobody in it yet, and one for the
+  dev user's own realm, whose Drive is not real (connecting fails).
+- **Rules**, one of them disabled. Each is limited to a realm of its own: a rule
+  that denies or demotes would act on the dev user the moment it matched.
+- **Announcements** in every state: showing, disabled, scheduled, expired.
+- **Worker health** for three workers, one of them silent for hours. Refreshed
+  at every launch; workers count as online for the two minutes after.
+- A few months of finished jobs for these users, for the customers' figures,
+  and a month of made-up usage for the Analytics page.
 
 Logs are in `.dev/logs/` (`oidc.log`, `backend.log`, `ui.log`). Stop
 everything with Ctrl-C.

@@ -16,8 +16,8 @@ from db.models import Announcement, AnnouncementSeverityEnum
 from utils.settings import get_settings
 
 MESSAGE = (
-    "This is a development environment. Everything here is sample data "
-    "and may be lost."
+    "This is a development environment. All data here is fake, including the "
+    "users, groups, customers and statistics, and may be lost."
 )
 CREATED_BY = "scribe-dev"
 
