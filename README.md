@@ -96,6 +96,50 @@ nothing and what you changed stays changed. `reset` starts over.
 - A few months of finished jobs for these users, for the customers' figures,
   and a month of made-up usage for the Analytics page.
 
+### How the seeding works
+
+The launch script runs five scripts from `support/` once the tables exist, in
+this order: `seed_user.py`, `seed_samples.py`, `seed_directory.py`,
+`seed_banner.py`, `seed_analytics.py`. Each runs inside `scribe-backend` with
+the backend's own settings, so it uses the same database and the same code as
+the backend does.
+
+- **Only what is missing is added.** Everything is found by a natural key
+  (username, job name, group name and realm, customer abbreviation, rule name,
+  announcement text), so a restart adds nothing and what you changed in the UI
+  stays changed.
+- **Samples are matched by name.** Delete a sample in My files and the next
+  launch adds it again. A sample added to `seed_samples.py` later turns up on
+  the next launch too, with no `reset`. The names are encrypted for the user,
+  so this needs `DEV_PASSPHRASE` to be what it was on the first run; if it was
+  changed, the script says so and adds nothing.
+- **Two things are refreshed every launch**: the banner's text, and the worker
+  health readings, which are replaced so the newest is always recent.
+- **Analytics history is added only when there is none** (nothing in the table
+  older than two days), so it is not doubled by a restart and what you record
+  yourself is left alone.
+- **It is the same data every time.** Where something is random it is seeded,
+  so every environment gets the same month, the same hour of subtitles and the
+  same users' jobs.
+
+To run one by hand, for instance after changing it:
+
+```sh
+cd scribe-backend
+set -a; . ../.dev/backend.env; set +a
+PYTHONPATH=. uv run python ../support/seed_directory.py dev@example.com
+```
+
+`seed_samples.py` also takes the passphrase (`... seed_samples.py dev@example.com devpassphrase`),
+`seed_user.py` and `seed_directory.py` the username, and `seed_banner.py` and
+`seed_analytics.py` nothing.
+
+To add a sample job, add its text to `seed_samples.py`, give it a name and an
+entry in `samples` (and in `files` if it plays its own audio or keeps an
+original), and relaunch. For something that breaks a rule, see
+`INVALID_SUBTITLES` there: a comment on each caption says which rule it is
+for, and nothing checks that automatically, so press Validate on the result.
+
 Logs are in `.dev/logs/` (`oidc.log`, `backend.log`, `ui.log`). Stop
 everything with Ctrl-C.
 
@@ -122,12 +166,10 @@ Environment variables, all optional:
 | `BRANCH` | `main` | Used when cloning. |
 | `BACKEND_REPO`, `UI_REPO` | the SUNET GitHub repos | Point at your forks. |
 
-The sample jobs are added once, when the user has no jobs, and are kept
-until `reset`; delete them in My files like any other job. Your data is kept
-between runs: the database and uploaded files live in
+Your data is kept between runs: the database and uploaded files live in
 `.dev/data/`, and nothing touches them except `reset`. The dev user is created
 once and then left alone, so roles and groups you change in the UI survive a
-restart.
+restart. See "How the seeding works" for what is added again and what is not.
 
 The settings files in `.dev/` are rewritten on every
 run, so a changed port always takes effect.
